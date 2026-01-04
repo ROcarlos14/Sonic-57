@@ -40,7 +40,7 @@ const MainApp: React.FC<{
       case AppSection.HOME:
         return <Hero
           onTrackSelect={onTrackSelect}
-          featuredTrack={tracks[0]}
+          featuredTrack={tracks[0] || null}
           allTracks={tracks}
           addToLibrary={addToLibrary}
           onStartExperience={() => navigateTo(AppSection.DISCOVER)}

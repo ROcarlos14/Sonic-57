@@ -6,7 +6,7 @@ interface HeroProps {
   onTrackSelect: (track: Track) => void;
   addToLibrary: (track: Track) => void;
   onStartExperience: () => void;
-  featuredTrack: Track;
+  featuredTrack: Track | null;
   allTracks: Track[];
 }
 
@@ -59,7 +59,7 @@ const Hero: React.FC<HeroProps> = ({ onTrackSelect, featuredTrack, allTracks, ad
       onMouseMove={handleMouseMove}
     >
       {/* Background Revealed Images */}
-      {trail.map((item) => (
+      {trail.map((item) => item.track && (
         <div
           key={item.id}
           className="reveal-image opacity-0 animate-in fade-in duration-500 fill-mode-forwards"
