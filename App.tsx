@@ -275,6 +275,31 @@ const App: React.FC = () => {
     );
   }
 
+  // Backup seeding UI if DB is empty
+  if (tracks.length === 0) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center space-y-8">
+        <div className="text-center">
+          <h1 className="text-4xl font-black uppercase mb-4 text-red-500">Database Empty</h1>
+          <p className="text-xs uppercase tracking-widest opacity-60">No sonic signatures detected in the primary archive.</p>
+        </div>
+        <button
+          onClick={async () => {
+            try {
+              const API_URL = (import.meta as any).env.PROD ? '/api/seed' : 'http://localhost:5001/api/seed';
+              const res = await fetch(API_URL, { method: 'POST' });
+              if (res.ok) window.location.reload();
+              else alert("Seeding Failed");
+            } catch (e) { alert("Connection Error"); }
+          }}
+          className="px-8 py-4 border border-white hover:bg-white hover:text-black transition-colors uppercase text-xs font-bold tracking-[0.2em]"
+        >
+          Initialize Default Library
+        </button>
+      </div>
+    )
+  }
+
   return (
     <Router>
       <div className="relative min-h-screen selection:bg-white selection:text-black">
