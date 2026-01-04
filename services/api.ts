@@ -1,7 +1,7 @@
 
 import { Track } from '../types';
 
-const API_URL = import.meta.env.PROD
+const API_URL = (import.meta as any).env.PROD
     ? '/api/tracks'
     : 'http://localhost:5001/api/tracks';
 
