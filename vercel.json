@@ -1,4 +1,12 @@
 {
+    "functions": {
+        "api/tracks.js": {
+            "maxDuration": 30
+        },
+        "api/seed.js": {
+            "maxDuration": 30
+        }
+    },
     "rewrites": [
         {
             "source": "/api/tracks/:id",
