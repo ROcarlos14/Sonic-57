@@ -1,6 +1,10 @@
 {
     "rewrites": [
         {
+            "source": "/api/tracks/:id",
+            "destination": "/api/tracks/[id].js"
+        },
+        {
             "source": "/api/tracks",
             "destination": "/api/tracks.js"
         },
