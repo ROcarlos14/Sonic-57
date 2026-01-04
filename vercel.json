@@ -1,8 +1,12 @@
 {
     "rewrites": [
         {
-            "source": "/api/(.*)",
-            "destination": "/api/index.js"
+            "source": "/api/tracks",
+            "destination": "/api/tracks.js"
+        },
+        {
+            "source": "/api/seed",
+            "destination": "/api/seed.js"
         },
         {
             "source": "/(.*)",

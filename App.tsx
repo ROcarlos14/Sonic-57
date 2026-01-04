@@ -286,11 +286,17 @@ const App: React.FC = () => {
         <button
           onClick={async () => {
             try {
-              const API_URL = (import.meta as any).env.PROD ? '/api/seed' : 'http://localhost:5001/api/seed';
-              const res = await fetch(API_URL, { method: 'POST' });
-              if (res.ok) window.location.reload();
-              else alert("Seeding Failed");
-            } catch (e) { alert("Connection Error"); }
+              const res = await fetch('/api/seed', { method: 'POST' });
+              const data = await res.json();
+              if (res.ok) {
+                alert('Success: ' + data.message);
+                window.location.reload();
+              } else {
+                alert('Failed: ' + (data.error || 'Unknown error'));
+              }
+            } catch (e) {
+              alert('Connection Error: ' + (e instanceof Error ? e.message : 'Unknown'));
+            }
           }}
           className="px-8 py-4 border border-white hover:bg-white hover:text-black transition-colors uppercase text-xs font-bold tracking-[0.2em]"
         >
