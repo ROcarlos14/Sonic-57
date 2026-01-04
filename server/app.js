@@ -13,10 +13,9 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Database Connection
-// Vercel Postgres usually provides POSTGRES_URL or DATABASE_URL
+// Database Connection - uses DATABASE_URL from environment only
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || "postgresql://postgres:NAROKAna@14@localhost:5432/sonic57",
+    connectionString: process.env.DATABASE_URL,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
