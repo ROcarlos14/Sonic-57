@@ -27,6 +27,8 @@ const Hero: React.FC<HeroProps> = ({ onTrackSelect, featuredTrack, allTracks, ad
     const { clientX, clientY } = e;
     const dist = Math.hypot(clientX - lastPos.current.x, clientY - lastPos.current.y);
 
+    if (!allTracks || allTracks.length === 0) return;
+
     if (dist > 80) { // Only spawn if moved far enough
       const newTrack = allTracks[count.current % allTracks.length];
       const newItem: TrailItem = {
