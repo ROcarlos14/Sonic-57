@@ -1,0 +1,9 @@
+
+{
+  "name": "SONIC-57",
+  "description": "A boutique music discovery platform inspired by the brutalist aesthetic of fiftyseven.co, featuring AI-curated sonic journeys.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
