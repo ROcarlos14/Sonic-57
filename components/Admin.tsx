@@ -1,7 +1,16 @@
 
 import React, { useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { Track } from '../types';
-import { Upload, Music, Image as ImageIcon, Trash2, CheckCircle, AlertCircle, Database, Lock, Link as LinkIcon } from 'lucide-react';
+import { Upload, Music, Image as ImageIcon, Trash2, CheckCircle, AlertCircle, Database, Lock, Loader2 } from 'lucide-react';
+
+// Initialize Supabase Client
+// NOTE: In a real production app, these should be env vars.
+// However, since we are patching this directly for you to work now:
+const SUPABASE_URL = 'https://rjapmhwtqtctwhojktbn.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqYXBtaHd0cXRjdHdob2prdGJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1NTI3NzYsImV4cCI6MjA4MzEyODc3Nn0.vFWgoZhweZS4l6zzk3buITR0-O7N7r6DDfHbvQJI5go';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 interface AdminProps {
   onAddTrack: (track: Track) => void;
@@ -9,7 +18,6 @@ interface AdminProps {
   tracks: Track[];
 }
 
-// Simple login component
 const AdminLogin: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -17,7 +25,6 @@ const AdminLogin: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Hardcoded credentials as requested
     if (username === 'admin' && password === 'sonicrok-57@naro') {
       sessionStorage.setItem('sonic57_admin', 'authenticated');
       onLogin();
@@ -86,55 +93,80 @@ const Admin: React.FC<AdminProps> = ({ onAddTrack, onDeleteTrack, tracks }) => {
     artist: '',
     album: '',
     genre: 'Techno',
-    duration: '03:45',
-    audioUrl: '' // Now a URL input instead of file
+    duration: '03:45'
   });
-  const [coverFile, setCoverFile] = useState<string | null>(null);
+
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
-  // Show login if not authenticated
   if (!isAuthenticated) {
     return <AdminLogin onLogin={() => setIsAuthenticated(true)} />;
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCoverFile(file);
 
-    // Check file size (max 500KB for cover images)
-    if (file.size > 500 * 1024) {
-      setStatus({ type: 'error', message: 'Cover image must be under 500KB' });
-      return;
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => setCoverPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleAudioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAudioFile(file);
+  };
+
+  const uploadFileTopSupabase = async (file: File, folder: 'audio' | 'covers'): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${folder}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+    console.log(`Uploading ${folder} file:`, fileName);
+
+    const { data, error } = await supabase.storage
+      .from('media')
+      .upload(fileName, file);
+
+    if (error) {
+      console.error('Supabase Upload Error:', error);
+      throw new Error(`Failed to upload ${folder}: ${error.message}`);
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      setCoverFile(result);
-    };
-    reader.readAsDataURL(file);
+    // Get Public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('media')
+      .getPublicUrl(fileName);
+
+    return publicUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!coverFile || !formData.audioUrl) {
-      setStatus({ type: 'error', message: 'Cover image and Audio URL are required.' });
-      return;
-    }
-
-    // Validate URL format
-    try {
-      new URL(formData.audioUrl);
-    } catch {
-      setStatus({ type: 'error', message: 'Please enter a valid audio URL (e.g., https://...)' });
+    if (!coverFile || !audioFile) {
+      setStatus({ type: 'error', message: 'Visual and Auditory files are required.' });
       return;
     }
 
     setIsSubmitting(true);
-    setStatus({ type: 'success', message: 'COMMITING TO ARCHIVE CORE...' });
+    setStatus({ type: 'success', message: 'UPLOADING TO STORAGE...' });
 
     try {
+      // 1. Upload Cover
+      const coverUrl = await uploadFileTopSupabase(coverFile, 'covers');
+
+      // 2. Upload Audio
+      const audioUrl = await uploadFileTopSupabase(audioFile, 'audio');
+
+      setStatus({ type: 'success', message: 'SYNCING TO DATABASE...' });
+
+      // 3. Save to Database
       const newTrack: Track = {
         id: `upl-${Date.now()}`,
         title: formData.title,
@@ -142,8 +174,8 @@ const Admin: React.FC<AdminProps> = ({ onAddTrack, onDeleteTrack, tracks }) => {
         album: formData.album,
         genre: formData.genre,
         duration: formData.duration,
-        cover: coverFile,
-        audioUrl: formData.audioUrl
+        cover: coverUrl,
+        audioUrl: audioUrl
       };
 
       await onAddTrack(newTrack);
@@ -151,20 +183,23 @@ const Admin: React.FC<AdminProps> = ({ onAddTrack, onDeleteTrack, tracks }) => {
       setIsSubmitting(false);
       setStatus({ type: 'success', message: 'FRAGMENT INGESTED AND PERSISTED.' });
 
-      // Reset form
+      // Reset
       setFormData({
         title: '',
         artist: '',
         album: '',
         genre: 'Techno',
-        duration: '03:45',
-        audioUrl: ''
+        duration: '03:45'
       });
       setCoverFile(null);
+      setCoverPreview(null);
+      setAudioFile(null);
+
+      // Clear file inputs manually if needed (not done here but good practice)
 
       setTimeout(() => setStatus(null), 3000);
     } catch (err) {
-      console.error("Admin Submission Error:", err);
+      console.error("Submission Error:", err);
       setIsSubmitting(false);
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
       setStatus({ type: 'error', message: `ERROR: ${errMsg}` });
@@ -188,7 +223,6 @@ const Admin: React.FC<AdminProps> = ({ onAddTrack, onDeleteTrack, tracks }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
-        {/* Left: Upload Form */}
         <div className="lg:col-span-5">
           <div className="mb-12">
             <span className="text-[10px] tracking-[0.5em] opacity-40 uppercase block mb-4 flex items-center gap-2">
@@ -199,6 +233,7 @@ const Admin: React.FC<AdminProps> = ({ onAddTrack, onDeleteTrack, tracks }) => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Title & Artist */}
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-[10px] uppercase tracking-widest opacity-40">Title</label>
@@ -222,6 +257,7 @@ const Admin: React.FC<AdminProps> = ({ onAddTrack, onDeleteTrack, tracks }) => {
               </div>
             </div>
 
+            {/* Album & Genre */}
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-[10px] uppercase tracking-widest opacity-40">Album</label>
@@ -242,60 +278,66 @@ const Admin: React.FC<AdminProps> = ({ onAddTrack, onDeleteTrack, tracks }) => {
                 >
                   <option className="bg-[#111]">Techno</option>
                   <option className="bg-[#111]">Synthwave</option>
-                  <option className="bg-[#111]">Ambient</option>
                   <option className="bg-[#111]">IDM</option>
+                  <option className="bg-[#111]">Ambient</option>
                   <option className="bg-[#111]">Experimental</option>
                   <option className="bg-[#111]">Deep House</option>
-                  <option className="bg-[#111]">Minimal</option>
-                  <option className="bg-[#111]">Noise</option>
                 </select>
               </div>
             </div>
 
+            {/* Duration & Audio File */}
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-[10px] uppercase tracking-widest opacity-40">Duration</label>
                 <input
                   type="text"
-                  placeholder="03:45"
                   value={formData.duration}
+                  placeholder="03:45"
                   onChange={e => setFormData({ ...formData, duration: e.target.value })}
                   className="w-full bg-white/5 border border-white/10 p-4 focus:border-white outline-none transition-all text-sm font-light tracking-widest"
                 />
               </div>
+
               <div className="space-y-2">
                 <label className="text-[10px] uppercase tracking-widest opacity-40 flex items-center gap-2">
-                  <LinkIcon size={12} /> Audio URL (MP3 Link)
+                  <Music size={12} /> Audio File (MP3)
                 </label>
-                <input
-                  type="url"
-                  required
-                  placeholder="https://example.com/song.mp3"
-                  value={formData.audioUrl}
-                  onChange={e => setFormData({ ...formData, audioUrl: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 p-4 focus:border-white outline-none transition-all text-sm font-light"
-                />
+                <div className={`relative border-2 border-dashed border-white/10 h-[58px] flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-all group overflow-hidden ${audioFile ? 'border-solid border-white/40 bg-white/10' : ''}`}>
+                  {audioFile ? (
+                    <span className="text-[10px] uppercase tracking-widest truncate px-2">{audioFile.name}</span>
+                  ) : (
+                    <span className="text-[8px] uppercase tracking-[0.3em] opacity-40">Select MP3</span>
+                  )}
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    onChange={handleAudioChange}
+                  />
+                </div>
               </div>
             </div>
 
+            {/* Cover Image */}
             <div className="space-y-4">
               <label className="text-[10px] uppercase tracking-widest opacity-40 flex items-center gap-2">
-                <ImageIcon size={12} /> Cover Image (Max 500KB)
+                <ImageIcon size={12} /> Cover Image
               </label>
-              <div className={`relative border-2 border-dashed border-white/10 h-48 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-all group overflow-hidden ${coverFile ? 'border-solid border-white/40' : ''}`}>
-                {coverFile ? (
-                  <img src={coverFile} className="w-full h-full object-cover" />
+              <div className={`relative border-2 border-dashed border-white/10 h-48 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-all group overflow-hidden ${coverPreview ? 'border-solid border-white/40' : ''}`}>
+                {coverPreview ? (
+                  <img src={coverPreview} className="w-full h-full object-cover" />
                 ) : (
                   <>
                     <Upload size={24} className="opacity-20 group-hover:opacity-100 mb-2 transition-opacity" />
-                    <span className="text-[8px] uppercase tracking-[0.3em] opacity-40">Select JPG/PNG (under 500KB)</span>
+                    <span className="text-[8px] uppercase tracking-[0.3em] opacity-40">Select Image</span>
                   </>
                 )}
                 <input
                   type="file"
                   accept="image/*"
                   className="absolute inset-0 opacity-0 cursor-pointer"
-                  onChange={handleFileChange}
+                  onChange={handleCoverChange}
                 />
               </div>
             </div>
@@ -305,7 +347,12 @@ const Admin: React.FC<AdminProps> = ({ onAddTrack, onDeleteTrack, tracks }) => {
               disabled={isSubmitting}
               className="w-full py-6 bg-white text-black font-black uppercase tracking-[0.5em] text-xs hover:bg-white/90 transition-all disabled:opacity-50 flex items-center justify-center gap-4 shadow-2xl"
             >
-              {isSubmitting ? 'Syncing to Core...' : 'Add Track'}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="animate-spin" size={16} />
+                  <span>Uploading...</span>
+                </>
+              ) : 'Initiate Ingest'}
             </button>
 
             {status && (
@@ -317,7 +364,7 @@ const Admin: React.FC<AdminProps> = ({ onAddTrack, onDeleteTrack, tracks }) => {
           </form>
         </div>
 
-        {/* Right: Existing Tracks Management */}
+        {/* Existing Tracks */}
         <div className="lg:col-span-7">
           <div className="flex justify-between items-end mb-8 border-b border-white/10 pb-4">
             <span className="text-[10px] tracking-[0.5em] opacity-40 uppercase">Archival Fragments</span>
